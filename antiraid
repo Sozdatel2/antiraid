@@ -1,0 +1,239 @@
+import random
+import sys
+import discord
+import time
+import os
+from discord import Intents, Activity, Member
+import asyncio
+from collections import defaultdict
+import threading
+from discord.ext import commands
+from discord import Embed
+from asyncio import sleep
+
+
+intents=intents=Intents.all()
+
+bot = commands.Bot(command_prefix = '.', intents = discord.Intents.all())
+
+bot.remove_command("help")
+
+
+
+global invite_uses_before
+invite_uses_before = defaultdict(dict)
+
+global invite_uses_after
+invite_uses_after = defaultdict(dict)
+
+global counter
+counter = {}
+
+global countdown_task
+countdown_task = {}
+
+global spam
+spam = {}
+
+@bot.event
+async def on_ready():
+    print("im ready")
+
+    members = 0
+    for guild in bot.guilds:
+      for member in guild.members:
+        members += 1
+    await bot.change_presence(activity=Activity(name=f"protecting {len(bot.guilds)} server(s) with {members} user(s)", type=5))
+    await asyncio.sleep(5)
+
+    loop = asyncio.get_event_loop()
+    loop.create_task(update_every_4s())
+
+async def update_invites():
+    for guild in bot.guilds:
+        invite_uses_before[guild.id] = []
+        invite_uses_before[guild.id] = list()
+        invites = await guild.invites()
+        invite_uses_before[guild.id].clear()
+        for invite in invites:
+            invite_uses_before[guild.id].append(invite)
+
+@bot.event
+async def on_invite_create(invite):
+    counter[invite.code] = []
+    counter[invite.code] = list()
+
+@bot.event
+async def on_guild_join(guild):
+    invite_uses_before[guild.id] = []
+    invite_uses_before[guild.id] = list()
+    invites = await guild.invites()
+    for invite in invites:
+        invite_uses_before[guild.id].append(invite)
+
+@bot.event
+async def on_member_join(member):
+    guild = bot.get_guild(member.guild.id)
+    invite_uses_after[guild.id] = []
+    invite_uses_after[guild.id] = list()
+    invite_uses_after[guild.id].clear()
+    invites = await guild.invites()
+
+    for invite in invites:
+        invite_uses_after[guild.id].append(invite)
+
+    for i, invite in enumerate(invite_uses_after[guild.id]):
+        countdown_task[invite.code] = asyncio.create_task(checkit())
+        try:
+            if countdown_task[invite.code] in asyncio.all_tasks():
+                pass
+                
+            else:
+                countdown_task[invite.code].start()
+        except:
+            countdown_task[invite.code].start()
+        counter[invite.code].append(member.id)
+        if int(invite_uses_before[guild.id][i].uses) != int(invite.uses):
+            if len(counter[invite.code]) >= 3:
+                await invite.delete(reason="used for spam")
+                for user in counter[invite.code]:
+                    await guild.ban(bot.get_user(user), reason = "Flow protector is ON and is protecting you from token spams", delete_message_days = 0)
+        else:
+            pass
+    
+    invite_uses_before[guild.id].clear()
+    for invite in invite_uses_after[guild.id]:
+        invite_uses_before[guild.id].append(invite)
+
+async def checkit():
+    time.sleep(10)
+    for guild in bot.guilds:
+        invites = await guild.invites()
+        for invite in invites:
+            counter[invite.code] = []
+            counter[invite.code] = list()
+            counter[invite.code].clear()
+
+async def update_every_4s():
+    while True:
+        await asyncio.sleep(4)
+        await update_invites()
+
+#@bot.command()
+#async def devload(ctx, extension):
+#    extension = extension.lower()
+#    await bot.load_extension(f'cogs.cog.py')
+#    await ctx.send(f'{extension} has been loaded')
+#
+#    for filename in os.listdir("./cogs"):
+#        if filename.endswith(".py") and not filename.startswith("_"):
+#            await bot.load_extension(f"cogs{filename[:-3]}")
+
+
+#@bot.command()
+#async def devunload(ctx, extension):
+#    extension = extension.lower()
+#    await bot.unload_extension(f'cogs.{extension}')
+#    await ctx.send(f'{extension} has been unloaded')
+
+
+@bot.command()
+async def help(ctx):
+    emb1 = discord.Embed(title=f"Help Command", description=f"**.help**\n ```show this message```\n **.ping**\n ```shows connection latency with discord```\n **.support**\n ```bot send link to support server to your DM```")
+    emb1.set_footer(text=f"Powered by sxnevwra          ©️ All rights reserved", icon_url='https://images-ext-1.discordapp.net/external/h4_CzbL-lnKSOtGsRAoknWX0Rc1I9qrnzguzHWnDrqE/%3Fsize%3D512/https/cdn.discordapp.com/avatars/942776739870933003/a_8a49f7f8b9f732edd9f2dedcabe074e0.gif?width=201&height=201')
+    await ctx.reply(embed=emb1)
+
+#@bot.command()
+#async def Protonrules(ctx):
+#    bot_access_id = ['942776739870933003']
+#    emb2 = discord.Embed(title=f":flag_us: Server Rules", description=f"Flood, spam, advertising, as well as any clogging of the chat with unnecessary information and / or emoji is strictly prohibited on the server.\n It is forbidden to use transliteration, the use of any language other than Russian and English. Also, excessive use of jargon and slang is not allowed.\n It is forbidden to publish any material thet contains rude, violent actions, cruelty, a call for such, as well as messages of an extrenist nature.\n It is not allowed to insult the members, team members and the bot, whether directly or indirectly.\n It is not allowed to violate the rules for using the Discord.\n Any behavior that we regard as inadequate will be stopped by capital punishment (ban without the possibility of appeal)")
+#    emb2.add_field(name=f":flag_ru: Правила Сервера", value=f"Запрещается флуд, спам, реклама, а также затопление чата любой бессмысленной информацией и / или эмодзи.\n Запрещается использование транслита, использование любого языка кроме Русского и Английского. Также чрезмерное использование жаргона и сленга не допускается.\n Запрещается публиковать любые материалы, содержащие в себе грубые, насильственные действия, призыв к таковому, а также сообщения экстремиского содержания.\n Не допускается оскорбление участников, сотрудников команды а также бота. Будь то косвенными или прямыми оскорблениями.\n Не допускается нарушение правил использования платформы Discord.\n Любое поведение, расцененное нами как неадекватное будет пресекаться с помощью высшей меры наказания. (Баном без возможности подачи аппеляции)")
+#    emb2.set_footer(text=f"Powered by Lockout          ©️ All rights reserved")
+#    await ctx.send(embed=emb2)
+
+@bot.command()
+async def support(ctx):
+    emb1 = discord.Embed(title=f"Support server", description=f"I sent invite in your DM!", colour=random.randint(1, 16777216))
+    await ctx.send(embed=emb1)
+    emb2 = discord.Embed(title=f"<:link:1082070674748739634> Your invite is here!", description=f"Thank you for using Proton bot!", colour=random.randint(1, 16777216))
+    emb2.set_footer(text=f"Powered by sxnevwra          ©️ All rights reserved", icon_url='https://images-ext-1.discordapp.net/external/h4_CzbL-lnKSOtGsRAoknWX0Rc1I9qrnzguzHWnDrqE/%3Fsize%3D512/https/cdn.discordapp.com/avatars/942776739870933003/a_8a49f7f8b9f732edd9f2dedcabe074e0.gif?width=201&height=201')
+    await ctx.author.send(embed=emb2)
+    await ctx.author.send(f'https://discord.gg/VjSuNB33Wy')
+
+@bot.command()
+async def ping(ctx):
+    emb1 = discord.Embed(title=f"Pong!🏓", description=f"The ping is **`{round(bot.latency *1000)}`**ms!", color=0x44ff44)
+    emb1.set_footer(text=f'Powered by sxnevwra          ©️ All rights reserved', icon_url='https://images-ext-1.discordapp.net/external/h4_CzbL-lnKSOtGsRAoknWX0Rc1I9qrnzguzHWnDrqE/%3Fsize%3D512/https/cdn.discordapp.com/avatars/942776739870933003/a_8a49f7f8b9f732edd9f2dedcabe074e0.gif?width=201&height=201')
+    await ctx.send(embed=emb1)
+
+@bot.command()
+@commands.is_owner()
+async def devban(ctx, member: discord.Member, *, reason = None):
+    await member.ban()
+    await ctx.reply(f'`✔ Member has been banned from the guild`')
+
+@bot.command()
+@commands.is_owner()
+async def devleave(ctx, serverid: int = None):
+    try:
+        toleave = bot.get_guild(serverid)
+        await bot.leave_guild(toleave)
+        await ctx.send(f"Успешно")
+    except:
+        toleave = bot.get_guild(serverid)
+        await toleave.leave()
+        await ctx.send(f"Успешно")
+
+@bot.command()
+@commands.is_owner()
+async def devservers(ctx):
+    shared_guilds = bot.guilds
+
+    # This is just a clean way to send the message
+    message = ""
+    for guild in shared_guilds:
+        message += f"`{guild.name}` \n"
+
+    await ctx.send(f"Guilds\n {message}")
+
+#@bot.command()
+#@commands.is_owner()
+#async def devid(ctx):
+#
+
+#@bot.command()
+#async def servers(ctx):
+#    bot_access_id = ['942776739870933003']
+#    activeservers = bot.guilds
+#    for guilds in activeservers:
+#        await ctx.send(f'`{bot.guilds}`')
+
+
+
+#@bot.command()
+#@commands.is_owner()
+#async def devlinks(ctx):
+#    bot_access_id = ['942776739870933003']
+#    await ctx.send(f'<:link:1082070674748739634> Our Endless Link\n      https://discord.gg/VjSuNB33Wy')
+#    await ctx.send(f'<:partner:1082070671825326190> Our Partner\n      https://discord.gg/MgWt7tmEAT')
+#    await ctx.send(f'<:discord:1082070668641845310> Our Official AntiRaid Server\n      https://discord.gg/GEDFgaehtT')
+#    await ctx.send(f'<:telegram:1082070683812626502> Our Telegram\n      Soon...')
+#    await ctx.send(f'<:dev:1082070680914370581> Link For Add Our Bot (Alpha version)\n       https://discord.com/api/oauth2/authorize?client_id=1079343778260852806&permissions=8&scope=bot')
+#    await ctx.send(f'<:study:1082070666901200980> ToS & Privacy Policy of Proton\n       https://telegra.ph/Proton-Terms-of-Service-03-09 & https://telegra.ph/Proton-Privacy-Policy-03-09')
+
+@bot.command(aliases=["dr"])
+@commands.is_owner()
+async def devreload(ctx):
+    await ctx.send(f'`✔ Bot has been restarted`')
+    os.execv(sys.executable, ['python'] + sys.argv)
+
+@bot.command()
+@commands.is_owner()
+async def devcomm(ctx):
+    await ctx.send(f'`Devtools`\n .devban - ban a user\n .devlinks - send a links in channel\n .devreload - reload a code without restart a bot')
+
+#@bot.command()
+#@commands.is_owner()
+#async def devdanya(ctx):
+#    await ctx.channel.purge(limit = 1)
+#    await ctx.send(f'<@919278454380326922> бля, не душни, заебал.')
